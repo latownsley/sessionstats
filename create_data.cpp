@@ -7,6 +7,16 @@
 #include <string>
 #include <sstream>              // allows you to treat a string as an object (ostringstream)
 #include <cstdint>              // provides fixed width integer types and numeric limits (i.e., int64_t)
+#include <vector>
+
+struct Session {
+    int id;
+    bool connected = false;
+    bool disconnected = false;          // ran through whole session do not reuse
+    double baseline_latency;       //tba
+    std::vector<double> latencies;
+    
+};
 
 // returns a string of the timestamp
 std::string generate_timestamp(std::int64_t ms) {
@@ -18,12 +28,80 @@ std::string generate_timestamp(std::int64_t ms) {
     return out.str();
 }
 
+// returns a string for a random event
+// if it hasn’t connected, connect; 
+// otherwise a random number picks frame (about 90%), error (about 1%) or disconnect (the rest).
+std::string generate_event(int count, std::mt19937& rng, Session& curr_session) {
+    std::string event_string;
+    if (!curr_session.connected) {
+        event_string = "event=connect";
+    } else {
+        // 98% of the time pick frame (TBA)
+        event_string = "event=frame";
+
+        // 1% error picking
+
+        //.2% of the time disconnect (tba)
+        // event_string = "event=disconnect";
+        // set curr_session.disconnected to true
+    }
+
+    return event_string;
+
+}
+
+// returns a string of randomly generated latency
+std::string generate_latency(Session& curr_session, std::int64_t ms, std::string event_type, std::mt19937& rng) {
+    // generate latency using std::lognormal_distribution
+    if (!curr_session.connected) {
+        //setup latency = 50-150 uniform
+        std::uniform_real_distribution<double> latency_options(50.0, 150.0);
+        curr_session.baseline_latency = latency_options(rng);
+        curr_session.connected = true;
+        return "latency_ms=" + std::to_string(curr_session.baseline_latency);
+    } else {
+        if (event_type == "event=frame") {
+            // latency = curr_session.baseline * noise // to have occassionally a spike
+            double new_latency = curr_session.baseline_latency; // multiply by noise gotten using lognormal_distribution?
+            return "latency_ms=" + std::to_string(new_latency);
+        } else {
+            return "latency_ms=0";
+        }
+        
+    }
+
+    return "latency_ms=VALUE(TBA)";
+
+}
+
+// create vec of 50 active sessions
+std::vector<Session> generate_active_sessions(std::mt19937& rng) {
+    std::vector<Session> active_sessions(50);
+    std::uniform_int_distribution<int> min_max_sessions(1, 3000);
+    std::int64_t next_id = min_max_sessions(rng);
+
+    for (auto& session : active_sessions) {
+        session.id = next_id;
+        next_id++;
+    }
+
+    return active_sessions;
+    
+}
+
+// get random session index
+int generate_random_session_index (std::mt19937& rng) {
+    std::uniform_int_distribution<int> index(0, 49);
+    int random_index = index(rng);
+    return random_index;
+}
+
 int main() {
 
     // create file
     std::ofstream logFile("log.txt");
 
-    // initialize with seed (currently 12345 for reproducable tests and timing) used std:: random_device{}() for actual random
+    // initialize with seed (currently 12345 for reproducable tests and timing) use std:: random_device{}() for actual random
     std::mt19937 rng(12345);
 
     // define time range (Jan 1 2026 - Jan 1 2027) Ok if it spills into 2027
@@ -36,16 +114,31 @@ int main() {
     // count number of lines
     int count = 0;
 
+    // random vec of 50 active random sessions
+    std::vector<Session> active_sessions = generate_active_sessions(rng);
+
+    // get random session to start
+    Session& s = active_sessions[generate_random_session_index(rng)];
+
     // check if file was successfully created
     if (logFile.is_open()) {
        
-        // write log data to file
+        // write log data to file (timestamp session=ID event=NAME latency_ms=VALUE)
         while (count < 1000000) {
             count += 1;
-            now_ms += step(rng);
-
+            now_ms += step(rng);            // advance clock
+            std::string timestamp = generate_timestamp(now_ms);
+            std::string event = generate_event(count, rng, s);
+            std::string latency = generate_latency(s, now_ms, event, rng);
             // print 
-            logFile << generate_timestamp(now_ms) << "rest of info / latency / etc" << '\n';
+            logFile << timestamp << s.id << event << latency << '\n';
+
+            // if session disconnect, reset to new session
+            if (event == "event=disconnect") {
+                while (s.disconnected) {
+                    s = active_sessions[generate_random_session_index(rng)];
+                }
+            }
 
         }
 
