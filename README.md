@@ -11,7 +11,7 @@ gaming services.
 Work in progress.
 
 - [x] `create_data.cpp`: generates a log of 1,000,000 lines
-- [ ] Log lines with session, event and latency
+- [x] Log lines with session, event and latency
 - [ ] `log_parser.cpp`: parse, percentiles, error rate, histogram
 - [ ] Tests
 - [ ] Multithreaded parsing and benchmarks
