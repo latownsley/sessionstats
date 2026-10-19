@@ -148,6 +148,14 @@ int main() {
             std::string timestamp = generate_timestamp(now_ms);
             std::string event = generate_event(rng, s);
             std::string latency = generate_latency(s, event, rng);
+
+            // bad lines to skip
+            std::uniform_int_distribution<int> bad_line_freq(0, 100);
+            int bad_line = bad_line_freq(rng);
+            if (bad_line < 1) {
+                logFile << "this is a bad line. you should probably skip me log parser." << '\n';
+            }
+
             // print 
             logFile << timestamp << " session=" << s.id << " " << event << " " << latency << '\n';
 
