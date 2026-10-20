@@ -68,13 +68,19 @@ std::string generate_latency(Session& curr_session, std::string event_type, std:
     if (event_type =="event=connect") {
         //setup latency = 50-150 uniform
         std::uniform_real_distribution<double> latency_options(50.0, 150.0);
-        curr_session.baseline_latency = latency_options(rng);
+        double connect_latency = latency_options(rng);
+
+        // set the baseline
+        std::lognormal_distribution<double> dist(log(20), 0.3);
+        curr_session.baseline_latency = dist(rng);
+
         //to_string gives six decimals so set it to 1 before
-        latency << "latency_ms=" << std::fixed << std::setprecision(1) << curr_session.baseline_latency;
+        latency << "latency_ms=" << std::fixed << std::setprecision(1) << connect_latency;
         return latency.str();
+
     } else if (event_type == "event=frame") {
         // latency = curr_session.baseline * noise // to have occassionally a spike
-        std::lognormal_distribution<double> dist(0.0, 1.0);
+        std::lognormal_distribution<double> dist(0.0, 0.1);
         double noise = dist(rng);
         double new_latency = curr_session.baseline_latency * noise; 
         latency << "latency_ms=" << std::fixed << std::setprecision(1) << new_latency;
