@@ -14,7 +14,6 @@ struct Session {
     bool connected = false;
     bool disconnected = false;          // ran through whole session do not reuse
     double baseline_latency;       //tba
-    std::vector<double> latencies;
     
 };
 
@@ -30,7 +29,7 @@ std::string generate_timestamp(std::int64_t ms) {
 
 // returns a string for a random event
 // if it hasn’t connected, connect; 
-// otherwise a random number picks frame (about 90%), error (about 1%) or disconnect (the rest).
+// otherwise a random number picks frame (about 98%), error (about 1%) or disconnect (~1%).
 std::string generate_event(std::mt19937& rng, Session& curr_session) {
     std::string event_string;
     if (!curr_session.connected) {
@@ -62,7 +61,7 @@ std::string generate_event(std::mt19937& rng, Session& curr_session) {
 }
 
 // returns a string of randomly generated latency
-std::string generate_latency(Session& curr_session, std::string event_type, std::mt19937& rng) {
+std::string generate_latency(Session& curr_session, std::string event_type, std::mt19937& rng, double jitter,  std::uniform_real_distribution<double> chance_of_spike, std::uniform_real_distribution<double> spike) {
     // generate latency using std::lognormal_distribution
     std::ostringstream latency; 
     if (event_type =="event=connect") {
@@ -79,10 +78,12 @@ std::string generate_latency(Session& curr_session, std::string event_type, std:
         return latency.str();
 
     } else if (event_type == "event=frame") {
-        // latency = curr_session.baseline * noise // to have occassionally a spike
-        std::lognormal_distribution<double> dist(0.0, 0.1);
-        double noise = dist(rng);
-        double new_latency = curr_session.baseline_latency * noise; 
+        double new_latency = curr_session.baseline_latency * jitter;
+
+        if (chance_of_spike(rng) < 0.02) {
+            new_latency *= spike(rng);
+        }
+
         latency << "latency_ms=" << std::fixed << std::setprecision(1) << new_latency;
         return latency.str();
     } else {
@@ -129,11 +130,19 @@ int main() {
 
     // count number of lines
     int count = 0;
+    int bad_line_count = 0;
 
     // random vec of 50 active random sessions
     std::vector<Session> active_sessions = generate_active_sessions(rng);
 
-    
+    int next_id = active_sessions.back().id + 1;
+
+    // generate random numbers for latency
+    std::lognormal_distribution<double> jitter(0.0, 0.15);
+    std::uniform_real_distribution<double> chance_of_spike(0.0, 1.0);
+    std::uniform_real_distribution<double> spike(3.0, 6.0); 
+
+    double jitter_num = jitter(rng);
 
     // check if file was successfully created
     if (logFile.is_open()) {
@@ -141,25 +150,29 @@ int main() {
         // write log data to file (timestamp session=ID event=NAME latency_ms=VALUE)
         while (count < 1000000) {
 
+            int idx = generate_random_session_index(rng);
+
             // connect to random session
-            Session& s = active_sessions[generate_random_session_index(rng)];
+            Session& s = active_sessions[idx];
 
             // if session disconnect, reset to new session
-            while (s.disconnected) {
-                s = active_sessions[generate_random_session_index(rng)];
+            if (s.disconnected) {
+                s = Session{};
+                s.id = next_id++;
             }
 
             count += 1;
             now_ms += step(rng);            // advance clock
             std::string timestamp = generate_timestamp(now_ms);
             std::string event = generate_event(rng, s);
-            std::string latency = generate_latency(s, event, rng);
+            std::string latency = generate_latency(s, event, rng, jitter_num, chance_of_spike, spike);
 
             // bad lines to skip
             std::uniform_int_distribution<int> bad_line_freq(0, 100);
             int bad_line = bad_line_freq(rng);
             if (bad_line < 1) {
                 logFile << "this is a bad line. you should probably skip me log parser." << '\n';
+                bad_line_count += 1;
             }
 
             // print 
@@ -173,6 +186,8 @@ int main() {
     } else {
         std::cerr << "Error: Could not create or open file.\n";
     }
+
+    std::cerr << "There were " << bad_line_count <<" bad lines.";
 
     return 0;
 }

@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <string>
 
@@ -28,6 +29,25 @@ struct Overall_Stats {
 };
 
 int main() {
+
+    std::ifstream log("log.txt");       // open
+
+    if (!log.is_open()) {
+        std::cerr << "Error: Could not open file.\n";
+        return 1;
+    }
+
+    std::string curr_line;
+
+    // loop through log line by line
+    while(std::getline(log, curr_line)) {
+        // process the line
+    }
+
+    log.close();
+
+    return 0;
+
     // read line
     // skip bad lines and count them
     // pull out timestamp, session ID, event and latency
