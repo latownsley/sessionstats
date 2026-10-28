@@ -61,7 +61,7 @@ std::string generate_event(std::mt19937& rng, Session& curr_session) {
 }
 
 // returns a string of randomly generated latency
-std::string generate_latency(Session& curr_session, std::string event_type, std::mt19937& rng, double jitter,  std::uniform_real_distribution<double> chance_of_spike, std::uniform_real_distribution<double> spike) {
+std::string generate_latency(Session& curr_session, std::string event_type, std::mt19937& rng,  std::lognormal_distribution<double> jitter,  std::uniform_real_distribution<double> chance_of_spike, std::uniform_real_distribution<double> spike) {
     // generate latency using std::lognormal_distribution
     std::ostringstream latency; 
     if (event_type =="event=connect") {
@@ -78,7 +78,8 @@ std::string generate_latency(Session& curr_session, std::string event_type, std:
         return latency.str();
 
     } else if (event_type == "event=frame") {
-        double new_latency = curr_session.baseline_latency * jitter;
+        double jitter_num = jitter(rng);
+        double new_latency = curr_session.baseline_latency * jitter_num;
 
         if (chance_of_spike(rng) < 0.02) {
             new_latency *= spike(rng);
@@ -142,7 +143,7 @@ int main() {
     std::uniform_real_distribution<double> chance_of_spike(0.0, 1.0);
     std::uniform_real_distribution<double> spike(3.0, 6.0); 
 
-    double jitter_num = jitter(rng);
+    
 
     // check if file was successfully created
     if (logFile.is_open()) {
@@ -165,7 +166,7 @@ int main() {
             now_ms += step(rng);            // advance clock
             std::string timestamp = generate_timestamp(now_ms);
             std::string event = generate_event(rng, s);
-            std::string latency = generate_latency(s, event, rng, jitter_num, chance_of_spike, spike);
+            std::string latency = generate_latency(s, event, rng, jitter, chance_of_spike, spike);
 
             // bad lines to skip
             std::uniform_int_distribution<int> bad_line_freq(0, 100);
